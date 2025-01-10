@@ -4,6 +4,8 @@ import { io } from "socket.io-client";
 import "../App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import SummaryReport from "./summary_report";
+import Select from "react-select";
+
 
 
 const VideoUpload = () => {
@@ -22,7 +24,9 @@ const VideoUpload = () => {
   const [modules, setModules] = useState([]); // Store available .pt files
   const [selectedModule, setSelectedModule] = useState(""); // Store selected module
   const [classNames, setClasses] = useState([]); // Store classes for the selected module
-  const [selectedClass, setSelectedClass] = useState(""); // Store selected class
+  const [selectedClasses, setSelectedClasses] = useState([]); // Update for multi-select
+
+
   let socket = null;
 
 
@@ -132,7 +136,7 @@ const VideoUpload = () => {
         socket = io("http://localhost:5000");
       }
 
-      socket.emit("task", { taskId: data.taskId, bucket, key });
+      socket.emit("task", { taskId: data.taskId, bucket, key,moduleName:selectedModule,classNames:selectedClasses.map((c) => c.value) });
 
       socket.on("connect", () => {
         console.log("WebSocket connected");
@@ -173,9 +177,15 @@ const VideoUpload = () => {
     setReport("");
     setVideoUrl("");
     setTaskCompleted(false);
+    setSelectedClasses([]);
+    setSelectedModule("");
     if (fileInputRef.current) {
       fileInputRef.current.value = ""; // Clear the file input
     }
+  };
+  const handleClassChange = (selectedOptions) => {
+
+    setSelectedClasses(selectedOptions || []); // Handle multi-select changes
   };
 
   return (
@@ -228,6 +238,7 @@ const VideoUpload = () => {
               className="form-select"
               onChange={handleModuleChange}
               value={selectedModule}
+              disabled={taskStarted}
             >
               <option value="">-- Select an Option --</option>
               {modules.map((module, index) => (
@@ -238,24 +249,22 @@ const VideoUpload = () => {
             </select>
           </div>
           <div className="col-6">
-            <label htmlFor="moduleSelect2" className="form-label">
-              Select Classes:
-            </label>
-            <select
-              id="moduleSelect2"
-              className="form-select"
-              onChange={(e) => setSelectedClass(e.target.value)}
-              value={selectedClass}
-              disabled={!classNames.length} // Disable the select if there are no classes
-            >
-              <option value="">-- Select an Option --</option>
-              {classNames.map((className, index) => (
-                <option key={index} value={className}>
-                  {className}
-                </option>
-              ))}
-            </select>
-          </div>
+          <label htmlFor="moduleSelect2" className="form-label">
+            Select Classes:
+          </label>
+          <Select
+            id="moduleSelect2"
+            isMulti
+            options={classNames.map((className) => ({
+              value: className,
+              label: className,
+            }))}
+            value={selectedClasses}
+            onChange={handleClassChange}
+            isDisabled={!classNames.length || taskStarted} // Disable if no classes are available
+            placeholder="-- Select Classes --"
+          />
+        </div>
         </div>
       </div>
 
