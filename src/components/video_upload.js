@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect,useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import "../App.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import SummaryReport from "./summary_report";
 
 
 const VideoUpload = () => {
@@ -13,8 +14,9 @@ const VideoUpload = () => {
   const [taskStarted, setTaskStarted] = useState(false);
   const [bucket, setBucket] = useState("logo-detection-bucket");
   const [key, setKey] = useState("");
-  const [report, setReport] = useState([]);
-  const [videoUrl, setVideoUrl] = useState("https://logo-detection-bucket.s3.eu-north-1.amazonaws.com/d8edfa95-8395-4df3-a1cc-3e2c394bbd3b/output/processed_video.mp4?response-content-type=video%2Fmp4&response-content-disposition=inline&AWSAccessKeyId=AKIASL7UKNJHPQRU4PO5&Signature=oWmE8vSgJ9ald4vh%2FHTewnIl69g%3D&Expires=1736438420");
+  const [reportUrl, setReport] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [taskCompleted, setTaskCompleted] = useState(false);
 
   const backendUrl = "http://localhost:5000/";
   const [modules, setModules] = useState([]); // Store available .pt files
@@ -61,6 +63,21 @@ const VideoUpload = () => {
 
 
 
+  const fileInputRef = useRef(null); // Ref for the file input element
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "Are you sure you want to leave? Your process may not be saved.";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
   const handleFileUpload = async () => {
     if (!file) {
       alert("Please select a file.");
@@ -77,7 +94,7 @@ const VideoUpload = () => {
 
       setBucket(data.bucket);
       setKey(data.key);
-      console.log("Presigned URL:", file.type);
+
       await axios.put(data.url, file, {
         headers: { "Content-Type": file.type },
         onUploadProgress: (progressEvent) => {
@@ -89,6 +106,8 @@ const VideoUpload = () => {
       });
 
       setUploading(false);
+      setProgress(0);
+      alert("File uploaded successfully! Please click 'Start Task' to begin.");
     } catch (err) {
       console.error("Error during file upload:", err);
       setUploading(false);
@@ -123,8 +142,15 @@ const VideoUpload = () => {
         if (update.taskId === data.taskId) {
           console.log("Progress update:", update);
           setProgress(update.progress);
-          if (update.report) setReport(update.reportUrl);
+          if (update.reportUrl) setReport(update.reportUrl);
           if (update.videoUrl) setVideoUrl(update.videoUrl);
+
+          if (update.status === 'Complete' &&update.progress === 100) {
+            setTaskCompleted(true);
+            setTaskStarted(false);
+            socket.disconnect();
+            alert("Task completed successfully!");
+          }
         }
       });
 
@@ -136,20 +162,29 @@ const VideoUpload = () => {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (socket) {
-        socket.disconnect();
-        socket = null;
-      }
-    };
-  }, []);
+  const handleReset = () => {
+    setFile(null);
+    setTaskId(null);
+    setProgress(0);
+    setUploading(false);
+    setTaskStarted(false);
+    setBucket("logo-detection-bucket");
+    setKey("");
+    setReport("");
+    setVideoUrl("");
+    setTaskCompleted(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Clear the file input
+    }
+  };
 
   return (
     <div className="container my-5">
-      <header className="text-center mb-4">
+      <div style={{textAlign:'center'}}>
         <h1 className="display-4">🎥 Logo Detection App POC</h1>
-        <p className="text-muted">Upload your video and detect logos seamlessly!</p>
+        <p className="text-muted">Upload your video and detect object seamlessly!</p>
+        </div>
+      <header className="text-center mb-4">
       </header>
 
       <div className="card shadow p-4 mb-4">
@@ -159,6 +194,7 @@ const VideoUpload = () => {
             type="file"
             onChange={(e) => setFile(e.target.files[0])}
             className="form-control"
+            ref={fileInputRef} // Attach ref to the file input
           />
           <button
             onClick={handleFileUpload}
@@ -225,13 +261,22 @@ const VideoUpload = () => {
 
 
       <div className="card shadow p-4 mb-4">
-        <h2 className="h5">Step 3: Start Detection Task</h2>
+        <h2 className="h5">Step 3: Start Detection Task 
+        {taskStarted &&(<p className="text-danger font-weight-bold">
+          Warning: Do not refresh or close the page during the process.
+        </p> )}
+        
+        </h2>
         <button
           onClick={handleStartTask}
           className="btn btn-success"
-          disabled={uploading || taskStarted}
+          disabled={uploading || taskStarted || taskCompleted}
         >
-          {taskStarted ? "Task Started" : "Start Task"}
+          {taskCompleted
+            ? "Task Completed"
+            : taskStarted
+            ? "Task In Progress..."
+            : "Start Task"}
         </button>
         {taskStarted && (
           <div className="progress mt-3">
@@ -245,41 +290,24 @@ const VideoUpload = () => {
         )}
       </div>
 
-      {report.length > 0 && (
-        <div className="card shadow p-4 mb-4">
+   
+      <div className="d-flex justify-content-between">
+      {taskCompleted && ( <div className="card shadow p-4 mb-4" style={{ flex: 1, marginRight: "20px" }}>
           <h2 className="h5">Detection Report</h2>
-          <table className="table table-striped">
-            <thead>
-              <tr>
-                <th>Logo Name</th>
-                <th>Confidence</th>
-                <th>Timestamp</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.map((item, index) => (
-                <tr key={index}>
-                  <td>{item.logoName}</td>
-                  <td>{item.confidence}%</td>
-                  <td>{item.timestamp}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+          <SummaryReport url={reportUrl} />
+        </div>)}
 
-      {videoUrl && (
-        <div className="card shadow p-4 mb-4">
-          <h2 className="h5">Processed Video</h2>
-          <video
-            controls
-            className="w-100"
-            type="video/mp4"
-            src={videoUrl}
-          ></video>
-        </div>
-      )}
+        {videoUrl && (
+          <div className="card shadow p-4 mb-4" style={{ flex: 1 }}>
+            <h2 className="h5">Processed Video</h2>
+            <video controls className="w-100" type="video/mp4" autoPlay src={videoUrl}></video>
+          </div>
+        )}
+      </div>
+
+      <button onClick={handleReset} className="btn btn-secondary mt-3">
+        Reset
+      </button>
     </div>
   );
 };
