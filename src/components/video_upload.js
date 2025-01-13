@@ -190,10 +190,16 @@ const VideoUpload = () => {
 
   return (
     <div className="container my-5">
-      <div style={{textAlign:'center'}}>
-        <h1 className="display-4">🎥 Logo Detection App POC</h1>
-        <p className="text-muted">Upload your video and detect object seamlessly!</p>
-        </div>
+      {<div style={{ textAlign: 'center', padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '10px', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)' }}>
+          <h1 className="display-4" style={{ fontWeight: 'bold', color: '#2c3e50', marginBottom: '10px' }}>
+             Welcome to RSystems<br />
+            <span style={{ color: '#0d6efd' }}>🎥 Object Detection</span>
+          </h1>
+          <p className="text-muted" style={{ fontSize: '18px', color: '#7f8c8d' }}>
+            Upload your video and detect objects seamlessly!
+          </p>
+        </div>}
+
       <header className="text-center mb-4">
       </header>
 
@@ -243,7 +249,7 @@ const VideoUpload = () => {
               <option value="">-- Select an Option --</option>
               {modules.map((module, index) => (
                 <option key={index} value={module}>
-                  {module}
+                  {module.split(".")[0]}
                 </option>
               ))}
             </select>
